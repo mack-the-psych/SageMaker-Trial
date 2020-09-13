@@ -160,7 +160,8 @@ class ScoringService(object):
         })
 
         predict_res = np.zeros(answer_len, dtype=np.int)
-        predict_res[0] =  np.argmax(prediction[0])
+        for i in range(len(prediction)):
+            predict_res[i] =  np.argmax(prediction[i])
 
         clf.df_ac_classified = pd.DataFrame(np.array(predict_res, dtype=np.int64), None, 
                                             ['Score_Class'])
