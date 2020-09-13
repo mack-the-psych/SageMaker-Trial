@@ -2,8 +2,21 @@
 # implement the scoring for your own algorithm.
 
 from __future__ import print_function
+
 # Makoto.Sano@Mack-the-Psych.com
-from tmv_tf_memn_classify import tmv_tf_memn_classify
+from tf_memn_classify import tmv_tf_memn_classify
+from sklearn.preprocessing import OneHotEncoder
+import tensorflow as tf
+import numpy as np
+import nltk.data
+
+dependent_var = r'Definition-Score'
+number_class = 3
+csv_dump = False
+batch_size = 100
+epochs = 1
+task_word = r'Definition'
+key_word = r'TF_MEMN2N-Def-PRE-POST-All'
 
 import os
 import json
@@ -22,12 +35,10 @@ import pandas as pd
 prefix = '/opt/ml/'
 model_path = os.path.join(prefix, 'model')
 
-dependent_var = r'Definition-Score'
-drop_vars = None
+input_path = prefix + 'input/data'
+channel_name='training'
 
-number_class = 3
-
-# Makoto.Sano@Mack-the-Psych.com
+'''
 class tmv_tf_memn_classify_in(tmv_tf_memn_classify):
     # Makoto.Sano@Mack-the-Psych.com
     def load_data(self, df_in, dependent_var, langs = None, task_word = 'Definition',
@@ -76,6 +87,7 @@ class tmv_tf_memn_classify_in(tmv_tf_memn_classify):
         words = ["{word}\n".format(word=x) for x in self.vocab]
         with open( LOG_DIR + "/words.tsv", 'w', encoding="utf-8") as f:
             f. writelines(words)    
+'''
 
 # A singleton for holding the model. This simply loads the model and holds it.
 # It has a predict function that does a prediction based on the model and the input data.
@@ -88,8 +100,19 @@ class ScoringService(object):
         """Get the model object for this instance, loading it if it's not already loaded."""
         if cls.model == None:
             # Makoto.Sano@Mack-the-Psych.com
-            with open(os.path.join(model_path, 'vdok3_memn2n.pkl'), 'rb') as inp:
-                cls.model = pickle.load(inp)
+            memnd = tmv_tf_memn_classify('/opt/program/vdok3/data/')
+            
+            memnd.load_data('Serialized-Def-ELVA.PILOT.PRE-TEST.csv', dependent_var, [0, 1], 
+                        task_word)
+            memnd.perform_modeling(memnd.df_ac_modeling_values, key_word, csv_dump, number_class, 
+                                   epochs, batch_size)
+            memnd.sess.close()
+            
+            saver = tf.train.Saver()
+            sess = tf.Session()
+            saver.restore(sess, os.path.join(model_path, 'vdok3_memn2n.ckpt'))
+            memnd.sess = sess
+            cls.model = memnd
         return cls.model
 
     @classmethod
@@ -101,14 +124,65 @@ class ScoringService(object):
                 one prediction per row in the dataframe"""
         clf = cls.get_model()        
         
-        # Makoto.Sano@Mack-the-Psych.com
-        memnd = tmv_tf_memn_classify_in('Independent_Variable_w_Label-Def.csv', 
-                                         '/opt/program/vdok3/data/')
-        memnd.load_data(input, dependent_var)        
-        clf.perform_prediction(memnd.df_ac_modeling_values, number_class)
+        # Makoto.Sano@Mack-the-Psych.com        
+        answer_clm = 'Definition-Answer'
+        answer_ex_clm = task_word
+
+        input = input.set_index(r'Student_Question_Index')
+        ans_tokens = cls.get_tokens(input[answer_clm].values)
+        ans_ex_tokens = cls.get_tokens(input[answer_ex_clm].values)
+
+        df_ac_modeling_values = pd.DataFrame({'Anser_Tokens': ans_tokens,
+                                                'Anser_example_Tokens': ans_ex_tokens})
+
+        ans_tokens_vector = clf.vectorize_tokens(list(df_ac_modeling_values['Anser_Tokens']),
+                                                  clf.ans_maxlen)
+        ans_ex_tokens_vector = clf.vectorize_tokens(list(df_ac_modeling_values['Anser_example_Tokens']),
+                                                  clf.ans_ex_maxlen)
+
+        print(ans_tokens)
+        print(ans_tokens_vector)
+        print(ans_ex_tokens)
+        print(ans_ex_tokens_vector)
+
+        df_ac_predict_target = input.loc[:,[dependent_var]]
+        y_test = df_ac_predict_target.transpose().values[0]
+        y_matrix_test = y_test.reshape(len(y_test),1)
+        ohe = OneHotEncoder(categorical_features=[0])
+        y_ohe_test = ohe.fit_transform(y_matrix_test).toarray()
+
+        answer_len = len(input)
+        prediction = clf.sess.run(clf.y, feed_dict={
+            clf.x: ans_ex_tokens_vector,
+            clf.q: ans_tokens_vector,
+            clf.a: y_ohe_test,
+            clf.n_batch: answer_len
+        })
+
+        predict_res = np.zeros(answer_len, dtype=np.int)
+        predict_res[0] =  np.argmax(prediction[0])
+
+        clf.df_ac_classified = pd.DataFrame(np.array(predict_res, dtype=np.int64), None, 
+                                            ['Score_Class'])
+        clf.df_ac_classified.index.name = r'AC_Doc_ID'
         
         return clf.df_ac_classified
 
+    @classmethod
+    def get_tokens(cls, answer_str_list):
+        list_cntnt = list(answer_str_list)
+        sent_detector = nltk.data.load('tokenizers/punkt/english.pickle')
+
+        tokens_all = []
+        for x in list_cntnt:
+            tokens = []
+            sentences = sent_detector.tokenize(x.strip())
+            for y in sentences:
+                tokens += nltk.word_tokenize(y)
+            tokens_all = tokens_all + [tokens]
+
+        return tokens_all
+    
 # The flask app for serving predictions
 app = flask.Flask(__name__)
 

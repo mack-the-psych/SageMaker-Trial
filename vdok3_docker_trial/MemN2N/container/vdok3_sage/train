@@ -6,6 +6,7 @@ import os
 import pickle
 import sys
 import traceback
+import tensorflow as tf
 
 from tf_memn_classify import tmv_tf_memn_classify
 
@@ -17,6 +18,7 @@ epochs = 20
 dependent_var = r'Definition-Score'
 task_word = r'Definition'
 number_class = 3
+key_word = 'TF_MEMN-Def-PRE-POST-All'
 
 # These are the paths to where SageMaker mounts interesting things in your container.
 
@@ -25,6 +27,7 @@ prefix = '/opt/ml/'
 input_path = prefix + 'input/data'
 output_path = os.path.join(prefix, 'output')
 model_path = os.path.join(prefix, 'model')
+model_path += '/'
 
 # This algorithm has a single channel of input data called 'training'. Since we run in
 # File mode, the input files are copied to the directory specified here.
@@ -39,13 +42,16 @@ def train(data_file):
         memnd = tmv_tf_memn_classify(training_path)
         memnd.load_data(data_file, dependent_var, [0, 1], 
                         task_word)
-        memnd.iloc_split_for_cross_validation(number_data_set = number_data_set)
-        memnd.modeling_prediction_evaluation_all(r'TF_MEMN-Def-PRE-POST-All', csv_dump, 
-                                                 number_class, epochs, batch_size)
+        memnd.perform_modeling(memnd.df_ac_modeling_values, key_word, csv_dump, number_class, epochs, batch_size)
+
+        memnd.perform_prediction(memnd.df_ac_modeling_values, number_class)
+        memnd.evaluate_prediction(key_word)
 
         # save the model
-        with open(os.path.join(model_path, 'vdok3_memn2n.pkl'), 'wb') as out:
-            pickle.dump(memnd, out)
+        saver = tf.train.Saver()
+        saved_model_path = saver.save(memnd.sess, model_path + 'vdok3_memn2n.ckpt')
+        print('Model saved to: ', saved_model_path)
+        
         print('Training complete.')
     except Exception as e:
         # Write out an error file. This will be returned as the failureReason in the
@@ -59,7 +65,7 @@ def train(data_file):
         sys.exit(255)
 
 if __name__ == '__main__':
-    train('Serialized-Def-ELVA.PILOT.PRE-POST-TEST.csv')
+    train('Serialized-Def-ELVA.PILOT.PRE-TEST.csv')
 
     # A zero exit code causes the job to be marked a Succeeded.
     sys.exit(0)
