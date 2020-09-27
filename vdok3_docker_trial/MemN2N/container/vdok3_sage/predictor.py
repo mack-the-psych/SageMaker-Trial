@@ -12,11 +12,11 @@ import nltk.data
 
 dependent_var = r'Definition-Score'
 number_class = 3
-csv_dump = False
-batch_size = 100
-epochs = 1
+# csv_dump = False
+# batch_size = 100
+# epochs = 1
 task_word = r'Definition'
-key_word = r'TF_MEMN2N-Def-PRE-POST-All'
+# key_word = r'TF_MEMN2N-Def-PRE-POST-All'
 
 import os
 import json
@@ -38,57 +38,6 @@ model_path = os.path.join(prefix, 'model')
 input_path = prefix + 'input/data'
 channel_name='training'
 
-'''
-class tmv_tf_memn_classify_in(tmv_tf_memn_classify):
-    # Makoto.Sano@Mack-the-Psych.com
-    def load_data(self, df_in, dependent_var, langs = None, task_word = 'Definition',
-                  answer_ex_clm = 'Definition'):
-        # Modified by mack.sano@gmail.com 3/22/2020
-        if os.path.exists(LOG_DIR):
-            shutil.rmtree(LOG_DIR)
-        os.mkdir(LOG_DIR)
-
-        self.dependent_var = dependent_var
-        # Makoto.Sano@Mack-the-Psych.com
-        self.df_response_answer_ex = df_in
-        self.df_response_answer_ex = self.df_response_answer_ex.set_index(r'Student_Question_Index')
-
-        if langs != None:
-            lang_clm = task_word + r'-Language'
-            self.df_response_answer_ex = \
-                self.df_response_answer_ex[self.df_response_answer_ex[lang_clm].isin(langs)]
-            
-        ans_clm = task_word + r'-Answer'
-
-        ans_tokens_all = self.get_tokens(ans_clm)
-        ans_ex_tokens_all = self.get_tokens(answer_ex_clm)
-
-        self.vocab = set()
-        for x in ans_tokens_all + ans_ex_tokens_all:
-            self.vocab |= set(x)
-        self.vocab = sorted(self.vocab)
-        self.vocab_size = len(self.vocab) + 1  # for padding +1
-
-        self.df_ac_modeling_values = pd.DataFrame({'Anser_Tokens': ans_tokens_all,
-                                                   'Anser_example_Tokens': ans_ex_tokens_all},
-                                                  index = self.df_response_answer_ex.index)
-
-        self.df_ac_modeling_values[self.dependent_var] = \
-                 self.df_response_answer_ex[self.dependent_var]
-
-        self.word_indices = dict((c, i + 1) for i, c in enumerate(self.vocab))
-
-        self.ans_ex_maxlen = \
-            max(map(len, (x for x in ans_ex_tokens_all)))
-        self.ans_maxlen = \
-            max(map(len, (x for x in ans_tokens_all)))
-            
-        # Modified by mack.sano@gmail.com 3/20/2020
-        words = ["{word}\n".format(word=x) for x in self.vocab]
-        with open( LOG_DIR + "/words.tsv", 'w', encoding="utf-8") as f:
-            f. writelines(words)    
-'''
-
 # A singleton for holding the model. This simply loads the model and holds it.
 # It has a predict function that does a prediction based on the model and the input data.
 
@@ -104,6 +53,8 @@ class ScoringService(object):
             
             memnd.load_data('Serialized-Def-ELVA.PILOT.PRE-TEST.csv', dependent_var, [0, 1], 
                         task_word)
+            
+            '''
             memnd.perform_modeling(memnd.df_ac_modeling_values, key_word, csv_dump, number_class, 
                                    epochs, batch_size)
             memnd.sess.close()
@@ -112,6 +63,10 @@ class ScoringService(object):
             sess = tf.Session()
             saver.restore(sess, os.path.join(model_path, 'vdok3_memn2n.ckpt'))
             memnd.sess = sess
+            '''
+            
+            memnd.restore_model(os.path.join(model_path, 'vdok3_memn2n.ckpt'), number_class)
+            
             cls.model = memnd
         return cls.model
 
