@@ -9,9 +9,9 @@ import traceback
 
 from torch_bert_classify import tmv_torch_bert_classify
 
-number_data_set = 4
 csv_dump = True
-epochs = 10
+# epochs = 10
+epochs = 1
 dependent_var = r'Definition-Score'
 task_word = r'Definition'
 number_class = 3
@@ -36,11 +36,11 @@ training_path += '/'
 def train(data_file):
     print('Starting the training.')
     try:    
-        bertd = tmv_torch_bert_classify(training_path, prefix + 'input/train/pytorch_advanced/nlp_sentiment_bert/')
+        bertd = tmv_torch_bert_classify(training_path, '/opt/program/vdok3/train/pytorch_advanced/nlp_sentiment_bert/')
         bertd.load_data(data_file, dependent_var, [0, 1], task_word)
         bertd.perform_modeling(bertd.df_ac_modeling_values, key_word, csv_dump, number_class, epochs)
         bertd.perform_prediction(bertd.df_ac_modeling_values, number_class)
-        memnd.evaluate_prediction(key_word)
+        bertd.evaluate_prediction(key_word)
 
         print('Training complete.')
     except Exception as e:
