@@ -12,7 +12,7 @@ number_class = 3
 # batch_size = 100
 # epochs = 1
 task_word = r'Definition'
-key_word = r'TORCH_BERT-Def-PRE-All'
+# key_word = r'TORCH_BERT-Def-PRE-All'
 answer_ex_clm = 'Definition'
 lang = [0, 1]
 
@@ -31,11 +31,17 @@ import flask
 import numpy as np
 import pandas as pd
 
+import cloudpickle
+import torch 
+from torch import nn
+
 prefix = '/opt/ml/'
 model_path = os.path.join(prefix, 'model')
 
 input_path = prefix + 'input/data'
 channel_name='training'
+tmp_csv_name = 'TORCH_RESPONSE_ANSWER_EX_FILE.CSV'
+batch_size = 32
 
 # A singleton for holding the model. This simply loads the model and holds it.
 # It has a predict function that does a prediction based on the model and the input data.
@@ -48,11 +54,14 @@ class ScoringService(object):
         """Get the model object for this instance, loading it if it's not already loaded."""
         if cls.model == None:
             # Makoto.Sano@Mack-the-Psych.com
-            bertd = tmv_torch_bert_classify('/opt/program/vdok3/data/', 
-                                     '/opt/program/vdok3/train/pytorch_advanced/nlp_sentiment_bert/')
-            bertd.restore_model(key_word)
-            # bertd.load_data('Head4-Serialized-Def-ELVA.PILOT.POST-TEST.csv', dependent_var, [0, 1], 
-            #             task_word)            
+            bertd = tmv_torch_bert_classify('/opt/program/vdok3/data/', '/opt/program/vdok3/train/pytorch_advanced/nlp_sentiment_bert/')
+            # bertd.restore_model(key_word)            
+            bertd.modeling_data_file_name = bertd.data_dir + tmp_csv_name
+            bertd.batch_size = batch_size
+            with open(os.path.join(model_path, 'vdok3_bert.pkl'), 'rb') as f:
+                bertd.net_trained = cloudpickle.load(f)
+            bertd.criterion = nn.CrossEntropyLoss()
+            
             cls.model = bertd
         return cls.model
 
@@ -73,11 +82,7 @@ class ScoringService(object):
         clf.answer_ex_clm = answer_ex_clm
         # self.df_response_answer_ex = self.df_response_answer_ex.set_index(r'Student_Question_Index')
         input = input.set_index(r'Student_Question_Index')
-
-        if langs != None:
-            lang_clm = task_word + r'-Language'
-            input = input[input[lang_clm].isin(langs)]
-            
+          
         clf.ans_clm = task_word + r'-Answer'
         clf.ans_and_ex_clm = task_word + r'-Answer-and-Example'
         
@@ -91,7 +96,7 @@ class ScoringService(object):
         columns.append(clf.ans_and_ex_clm)
         clf.df_ac_modeling_values = input.reindex(columns=columns)        
         clf.df_response_answer_ex = input
-        clf.perform_prediction(bertd.df_ac_modeling_values, number_class)
+        clf.perform_prediction(clf.df_ac_modeling_values, number_class)
               
         return clf.df_ac_classified
     
